@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>收银台</title>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://h5.bestpay.cn/common/js/Encrypt.min.js"></script>
+  </head>
+  <body>
+    <div id="output"></div>
+  </body>
+  <script>
+    // 生成16位随机数
+    function generateMixed() {
+      for (var t = [], e = 0; e < 16; e++) t.push(Math.floor(10 * Math.random()))
+      return t.join('')
+    }
+    // RSA公钥加密
+    function h5CommonRsa(t, e) {
+      var n = new window.JSEncrypt()
+      return n.setPublicKey(t), n.encrypt(e)
+    }
+    // AES加密
+    function AES_EncodeForCA(t, e) {
+      return window.GibberishAES.size(128), window.GibberishAES.aesEncrypt(t, e)
+    }
+    // MD5加密
+    function h5MD5(t) {
+      return window.CryptoJS.MD5(t).toString().toUpperCase()
+    }
+    // 时间戳
+    function traceLogId() {
+      for (var t = arguments.length > 0 && void 0 !== arguments[0] ? arguments[0] : 18, e = [], n = 0; n < t - 13; n++)
+        e.push(Math.floor(10 * Math.random()))
+      return new Date().getTime() + e.join('')
+    }
+
+    const urlParams = new URLSearchParams(window.location.search)
+    const token = urlParams.get('token')
+    var data = {
+      token: token,
+      referer: 'https://h5.bestpay.cn/',
+      agreeId: '20201103030100063047385974047788',
+      traceLogId: traceLogId(),
+      requestSystem: 'merchant-portal-h5'
+    }
+    var t = JSON.stringify(data)
+    console.log(t)
+    // 请求服务器RSA公钥
+    axios
+      .post(
+        'https://mapi.bestpay.com.cn/gapi/mapi-gateway/applyLoginFactor',
+        {
+          productNo: 'juhe001@qq.com1',
+          requestType: 'H5',
+          agreeId: '20201103030100063047385974047788'
+        },
+        {
+          'Content-Type': 'application/json;charset=utf-8'
+        }
+      )
+      .then(function (r) {
+        if (r.data.success) {
+          var o = generateMixed(), // 16位随机数key
+            i = r.data.result.nonce, // 服务器RSA公钥
+            a = h5CommonRsa(i, o), // 用服务器RSA公钥加密随机数key
+            u = AES_EncodeForCA(t, o).replace(/\n/g, ''), // 使用16位随机数key加密data
+            s = h5MD5(t) // md5校验sign
+          // 获取支付链接
+          axios
+            .post(
+              'https://mapi.bestpay.com.cn/gapi/pay/wapPayOrderQuery',
+              {
+                data: u,
+                key: a,
+                sign: s,
+                productNo: 'juhe001@qq.com1',
+                encyType: 'C005'
+              },
+              {
+                'Content-Type': 'application/json;charset=utf-8'
+              }
+            )
+            .then(function (response) {
+              console.log(response.data)
+              var outputDiv = document.getElementById('output')
+              var outputHTML = ''
+              outputHTML += 'intermediateStatus: ' + response.data.result.intermediateStatus + '<br>'
+              outputHTML += 'merchantName: ' + response.data.result.merchantName + '<br>'
+              outputHTML += 'merchantNo: ' + response.data.result.merchantNo + '<br>'
+              outputHTML += 'outTradeNo: ' + response.data.result.outTradeNo + '<br>'
+              outputHTML += 'redirectUrl: ' + response.data.result.redirectUrl + '<br>'
+              outputHTML += 'requestDate: ' + response.data.result.requestDate + '<br>'
+              outputHTML += 'resultCode: ' + response.data.result.resultCode + '<br>'
+              outputHTML += 'resultMsg: ' + response.data.result.resultMsg + '<br>'
+              outputHTML += 'returnUrl: ' + response.data.result.returnUrl + '<br>'
+              outputHTML += 'subject: ' + response.data.result.subject + '<br>'
+              outputHTML += 'tradeAmt: ' + response.data.result.tradeAmt + '<br>'
+              outputHTML += 'tradeNo: ' + response.data.result.tradeNo + '<br>'
+              outputHTML += 'tradeScene: ' + response.data.result.tradeScene + '<br>'
+              outputHTML += 'tradeStatus: ' + response.data.result.tradeStatus + '<br>'
+              outputHTML += 'tradeType: ' + response.data.result.tradeType + '<br>'
+              outputDiv.innerHTML = outputHTML
+              document.body.appendChild(outputDiv)
+              var link = document.createElement('a')
+              if (response.data.result.tradeType == 'WECHAT') {
+                link.setAttribute('href', response.data.result.redirectUrl)
+                link.textContent = response.data.result.redirectUrl
+              } else {
+                link.setAttribute(
+                  'href',
+                  'alipays://platformapi/startapp?saId=10000007&qrcode=' + response.data.result.redirectUrl
+                )
+                link.textContent =
+                  'alipays://platformapi/startapp?saId=10000007&qrcode=' + response.data.result.redirectUrl
+              }
+
+              document.body.appendChild(link)
+            })
+            .catch(function (error) {
+              console.log(error)
+            })
+        }
+      })
+  </script>
+</html>
