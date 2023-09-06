@@ -1,7 +1,3 @@
-// Follow this setup guide to integrate the Deno language server with your editor:
-// https://deno.land/manual/getting_started/setup_your_environment
-// This enables autocomplete, go to definition, etc.
-
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 // import JSEncrypt from 'npm:jsencrypt@^3.3.2'
 // import CryptoJS from 'npm:crypto-js@^4.1.1'
@@ -11,6 +7,12 @@ import { JSEncrypt } from './Encrypt.min.js'
 
 console.log('230901-小翼管家-手机充值')
 console.log(Deno.cwd()) //当前目录
+// 本机IP
+fetch('https://api.ip.sb/ip')
+  .then(response => {
+    return response.text()
+  })
+  .then(data => console.log(data))
 
 function getClientKey() {
   const t = new JSEncrypt()
@@ -95,6 +97,7 @@ serve(async req => {
   const url = new URL(req.url, `http://${req.headers.get('host')}`)
   const searchParams = new URLSearchParams(url.search)
   const type = searchParams.get('type')
+  const operationType = searchParams.get('operationType') ?? ''
 
   if (req.method == 'GET') {
     const html = await Deno.readTextFile('wapPay.html')
@@ -107,6 +110,7 @@ serve(async req => {
 
   let response = {}
   console.log(`XiaoYiGuanJia: ${type}`)
+  console.log(`operationType: ${operationType}`)
 
   switch (type) {
     case 'getClientKey':
@@ -142,45 +146,14 @@ serve(async req => {
       console.log(response)
       break
     }
-    case 'rpc_query': {
-      // 查询手机号码归属地
+    case 'rpc_wasm': {
+      // rpc调用wasm发送请求
       try {
-        response = await rpc_call(
-          data,
-          'com.bestpay.handyservice.communication.product.service.api.basic.IBasicService.queryPhoneAttribution'
-        )
-        console.log('rpc_order success: ', response)
+        response = await rpc_call(data, operationType)
+        console.log('rpc_wasm success: ', response)
       } catch (error) {
         response = error
-        console.log('rpc_order error: ', error)
-      }
-      break
-    }
-    case 'rpc_order': {
-      // 下单
-      try {
-        response = await rpc_call(
-          data,
-          'com.bestpay.handyservice.communication.product.service.api.h5.IH5Service.aggregationRechargeOrder'
-        )
-        console.log('rpc_order success: ', response)
-      } catch (error) {
-        response = error
-        console.log('rpc_order error: ', error)
-      }
-      break
-    }
-    case 'rpc_record': {
-      // 记录
-      try {
-        response = await rpc_call(
-          data,
-          'com.bestpay.handyservice.communication.product.service.api.basic.IBasicService.paymentRecordQuery'
-        )
-        console.log('rpc_order success: ', response)
-      } catch (error) {
-        response = error
-        console.log('rpc_order error: ', error)
+        console.log('rpc_wasm error: ', error)
       }
       break
     }
@@ -189,18 +162,3 @@ serve(async req => {
   }
   return new Response(JSON.stringify(response), { headers: { 'Content-Type': 'application/json' } })
 })
-
-// To invoke:
-// curl -i --location --request POST 'http://localhost:54321/functions/v1/' \
-//   --header 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0' \
-//   --header 'Content-Type: application/json' \
-//   --data '{"name":"Functions"}'
-/*
-// 本地调试
-curl --request POST \
-  --url 'http://localhost:8000/functions?type=aeskey_en2' \
-  --header 'content-type: application/json' \
-  --data '{"PublicKey":"MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCs/2FK9LHT2jx5+SrzKG8QpHHifgQ2Szqx+ApFjuQNIymtuByI0kh/d41J74l6sdpcXY+QOfiVqg2hzbG++A9SsTIIzqCOhcURmyfOM026ieBWTOyT98mNtju2ne2YzxJ+tu0J6NyBN7SIVG284TlFikNmA1CPpZ+zIc1de/nrwQIDAQAB","key":"DD8HThMTaA7TGLia"}'
-*/
-// docker部署 - docker run -it --init --name XiaoYiGuanJia -p 8000:8000 -v /www/wwwroot/XiaoYiGuanJia:/app -w /app denoland/deno:latest run --allow-all index.ts
-// 本地运行 - deno run --allow-all index.ts
